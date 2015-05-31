@@ -21,7 +21,7 @@ class Bonuses ():
                                      result[p]+=1
                                      index.append(p)
                                      break
-              print result
+              return result
 
 
 
