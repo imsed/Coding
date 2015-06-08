@@ -1,0 +1,274 @@
+#!/usr/bin/python
+
+import  sys, os, re, time, datetime, pprint
+import  MySQLdb, cPickle, json
+import  traceback, logging
+import  pexpect
+from    collections     import  defaultdict
+from    priodict        import  priorityDictionary
+
+
+
+def     connect_to_database( ) :
+        """ Connect to the observer database. """
+
+        db_connection = None
+        db_connection = MySQLdb.connect("nl-ams05a-osd01", "observer", "oBs3rv3r", "observer")
+
+        return  db_connection
+
+def     dict_query_database( db_connection, query ) :
+        """ Perform a query to the observer database. Returns a dictionary cursor. """
+
+        rc = None
+        with db_connection :
+                db_cursor = db_connection.cursor(MySQLdb.cursors.DictCursor)
+                db_cursor.execute(query)
+                rc = db_cursor.fetchall()
+                db_cursor.close()
+
+        return  rc
+
+def     modify_database( db_connection, query ) :
+        """ Perform INSERT, DELETE, etc. """
+
+        rc = None
+        with db_connection :
+                db_cursor = db_connection.cursor(MySQLdb.cursors.DictCursor)
+                db_cursor.execute(query)
+                db_cursor.close()
+
+        return
+
+def     dijkstra( G, start, end=None ) :
+        """
+        Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
+        For any vertex v, G[v] is itself a dictionary, indexed by the neighbors of v.  For any edge v->w, G[v][w] is the length of the edge.
+        The output is a pair (D,P) where D[v] is the distance from start to v and P[v] is the predecessor of v along the shortest path from s to v.
+        """
+
+        D               = {}                    # dictionary of final distances.
+        P               = {}                    # dictionary of predecessors.
+        Q               = priorityDictionary()  # estimated distances of non-final vertices.
+        Q[start]        = 0
+
+        for v in Q:
+                D[v] = Q[v]
+                if v == end: break
+
+                for w in G[v]:
+                        vwLength = D[v] + G[v][w]
+                        if w in D:
+                                if vwLength < D[w]:
+                                        raise ValueError, "Dijkstra: found better path to already-final vertex"
+                        elif w not in Q or vwLength < Q[w]:
+                                Q[w] = vwLength
+                                P[w] = v
+
+        return  ( D, P )
+
+def     shortest_path( G, start, end ) :
+        """
+        Find a single shortest path from the given start vertex to the given end vertex.
+        The output is a list of the vertices in order along the shortest path.
+        """
+
+        D,P = dijkstra(G,start,end)
+        Path = []
+        while 1:
+                Path.append(end)
+                if end == start: break
+                end = P[end]
+        Path.reverse()
+
+        return  Path
+
+
+
+def     main( ) :
+
+        db_connection   = connect_to_database( )
+
+        ol_map          = "SELECT id,name,latitude,longitude,zoom FROM openlayers ;"
+        ol_map_rc       = dict_query_database( db_connection, ol_map )
+        for ol_map_i     in ol_map_rc :
+                map_id          = str(ol_map_i['id'])
+                map_            = { 'id':ol_map_i['id'], 'name':ol_map_i['name'], 'latitude':ol_map_i['latitude'], 'longitude':ol_map_i['longitude'], 'zoom':ol_map_i['zoom'] }
+
+
+                #       NETELEMENT
+                netelement_     = [ ]
+                ol_router       = "SELECT openlayers.name, router.id,router.hostname,router.ip, xml_status.timestamp, openlayers_router.latitude,openlayers_router.longitude,op
+enlayers_router.icon FROM openlayers, router, openlayers_router, xml_status WHERE router.id=openlayers_router.router_id AND router.id=xml_status.router_id AND openlayers.id="+
+map_id+" AND openlayers_router.state=1 ;"
+                ol_router_rc    = dict_query_database( db_connection, ol_router )
+                for ol_router_i in ol_router_rc :
+                        router_ = { }
+                        router_ = { 'router_id':ol_router_i['id'], 'hostname':ol_router_i['hostname'], 'ip_address':ol_router_i['ip'], 'timestamp':str(ol_router_i['timestamp']
+), 'latitude':ol_router_i['latitude'], 'longitude':ol_router_i['longitude'], 'marker':ol_router_i['icon'] }
+                        netelement_.append( router_ )
+
+
+                #       ISIS
+                isis_           = [ ]
+                ol_isis         = "SELECT openlayers_router.router_id, router.hostname FROM openlayers_router, router WHERE router.id=openlayers_router.router_id AND openlayer
+s_router.map_id="+map_id+" AND openlayers_router.state=1 ;"
+                ol_isis_rc      = dict_query_database( db_connection, ol_isis )
+                for ol_isis_i   in ol_isis_rc :
+                        a_sys_id        = str(ol_isis_i['router_id'])
+                        a_host          = str(ol_isis_i['hostname'])
+
+                        happens         = defaultdict( dict )
+                        count           = "SELECT isis_adjacency.a_sys_id, isis_adjacency.b_sys_id, COUNT(isis_adjacency.b_sys_id) count FROM isis_adjacency, router, interface
+ WHERE isis_adjacency.a_sys_id="+str(a_sys_id)+" AND isis_adjacency.b_sys_id IS NOT NULL AND isis_adjacency.b_id!=0 AND isis_adjacency.b_sys_id=router.id AND isis_adjacency.a_
+id=interface.id GROUP BY isis_adjacency.b_sys_id ;"
+                        count_rc        = dict_query_database( db_connection, count )
+                        for count_i     in count_rc :
+                                sys_id          = str(count_i['b_sys_id'])
+                                happens[sys_id] = str(count_i['count'])
+
+                        isis_adj        = "SELECT isis_adjacency.a_sys_id, isis_adjacency.a_id, interface.if_name,interface.description, isis_adjacency.metric,isis_adjacency.t
+imestamp,isis_adjacency.b_ipv4,isis_adjacency.b_ipv6, router.hostname system, isis_adjacency.b_sys_id, interface.phy_if_id FROM isis_adjacency, router, interface WHERE isis_ad
+jacency.a_sys_id="+a_sys_id+" AND isis_adjacency.b_sys_id IS NOT NULL AND isis_adjacency.b_id!=0 AND isis_adjacency.b_sys_id=router.id AND isis_adjacency.a_id=interface.id ORD
+ER BY isis_adjacency.b_sys_id ;"
+                        isis_adj_rc     = dict_query_database( db_connection, isis_adj )
+                        group_          = [ ]
+                        lc              = 0
+                        alarm           = 0
+                        for isis_adj_i  in isis_adj_rc :
+                                        a_id    = str(isis_adj_i['a_id'])
+                                        a_id_phy= str(isis_adj_i['phy_if_id'])
+                                        b_sys_id= str(isis_adj_i['b_sys_id'])
+
+                                        a_lat = a_long = b_lat = b_long = mid_lat = mid_long = 0
+                                        geo     = "SELECT router_id,latitude,longitude FROM openlayers_router WHERE router_id in ("+a_sys_id+","+b_sys_id+") ;"
+                                        geo_rc  = dict_query_database( db_connection, geo )
+                                        for geo_i       in geo_rc :
+                                                if a_sys_id==str(geo_i['router_id']) :
+                                                        a_lat   = geo_i['latitude']
+                                                        a_long  = geo_i['longitude']
+                                                if b_sys_id==str(geo_i['router_id']) :
+                                                        b_lat   = geo_i['latitude']
+                                                        b_long  = geo_i['longitude']
+                                                if a_lat!=0 and a_long!=0 and b_lat!=0 and b_long!=0 :
+                                                        mid_lat = (a_lat+b_lat)/2
+                                                        mid_long= (a_long+b_long)/2
+
+                                        #       TRAFFIC
+                                        vol     = "SELECT `in`,`out`,timestamp, interface.speed FROM `"+a_host+"`,interface WHERE interface_id=interface.id AND interface_id="+
+a_id_phy+" AND timestamp>=DATE_SUB(NOW(), INTERVAL 10 MINUTE) ORDER BY timestamp DESC LIMIT 1;"
+                                        vol_rc  = dict_query_database( db_connection, vol )
+                                        for vol_i       in vol_rc :
+                                                a_id_phy_in     = str(vol_i['in'])
+                                                a_id_phy_out    = str(vol_i['out'])
+                                                a_id_phy_time   = str(vol_i['timestamp'])
+                                                a_id_phy_speed  = str(vol_i['speed'])
+                                                input_percent   = str(round(float(a_id_phy_in)/int(a_id_phy_speed)*100,1))
+                                                output_percent  = str(round(float(a_id_phy_out)/int(a_id_phy_speed)*100,1))
+
+                                        #       ALARM
+                                        alert   = "SELECT link_status,ae_if_id FROM interface WHERE id="+a_id_phy+" ;"
+                                        alert_rc= dict_query_database( db_connection, alert )
+                                        for alert_i     in alert_rc :
+                                                if_link = alert_i['link_status']
+                                                ether   = alert_i['ae_if_id']
+                                                if if_link==1 and ether==0 :
+                                                        member          = "SELECT link_status FROM interface WHERE ae_if_id="+a_id_phy+" ;"
+                                                        member_rc       = dict_query_database( db_connection, member )
+                                                        for member_i    in member_rc :
+                                                                m_link  = member_i['link_status']
+                                                                if m_link==0 :
+                                                                        alarm   = 1
+                                                if if_link==0 :
+                                                        alarm   = 1
+
+
+                                        if lc < int(happens[b_sys_id]) :
+                                                group_.append( { 'a_intf_name':isis_adj_i['if_name'], 'a_intf_description':isis_adj_i['description'], 'a_intf_metric':isis_adj_
+i['metric'], 'b_ipv4':isis_adj_i['b_ipv4'], 'b_ipv6':isis_adj_i['b_ipv6'], 'isis_time':isis_adj_i['timestamp'].strftime('%Y-%m-%d %H:%M:%S'), 'traffic_time':a_id_phy_time, 'a_
+intf_phy_in':a_id_phy_in, 'a_intf_phy_out':a_id_phy_out, 'a_intf_phy_input':input_percent, 'a_intf_phy_output':output_percent, 'a_intf_phy_id':a_id_phy, 'a_intf_phy_speed':a_i
+d_phy_speed } )
+                                                lc      = lc + 1
+                                        if lc==int(happens[b_sys_id])  :
+                                                protocol_       = {  }
+
+                                                metric          = "---"
+                                                post            = 0
+                                                default         = group_[0]['a_intf_metric']
+                                                for m   in group_ :
+                                                        post    = post + m['a_intf_metric']
+                                                if (default*len(group_)) == post :
+                                                        metric  = default
+
+                                                volume          = 0
+                                                for v   in group_ :
+                                                        if float(v['a_intf_phy_output'])>volume :
+                                                                volume  = float(v['a_intf_phy_output'])
+
+                                                protocol_       = { 'hostname':a_host, 'system':isis_adj_i['system'], 'netelement_lat':a_lat, 'netelement_long':a_long, 'midpoi
+nt_lat':mid_lat, 'midpoint_long':mid_long, 'group_by':group_, 'metric':metric, 'volume':volume, 'alarm':alarm }
+                                                isis_.append( protocol_ )
+                                                group_  = [ ]
+                                                lc      = 0
+                                                alarm   = 0
+
+
+                #       DIJKSTRA
+                G       = defaultdict( dict )
+                ol_isis         = "SELECT openlayers_router.router_id, router.hostname FROM openlayers_router, router WHERE router.id=openlayers_router.router_id AND openlayer
+s_router.map_id="+map_id+" AND openlayers_router.state=1 ;"
+                ol_isis_rc      = dict_query_database( db_connection, ol_isis )
+                for ol_isis_i   in ol_isis_rc :
+                        a_sys_id        = str(ol_isis_i['router_id'])
+                        a_host          = str(ol_isis_i['hostname'])
+                        if a_host       not in G :
+                                G[a_host]       = defaultdict( dict )
+                        neighbor        = "SELECT isis_adjacency.metric, router.hostname b_host FROM isis_adjacency,router WHERE isis_adjacency.b_sys_id IS NOT NULL AND isis_a
+djacency.b_id!=0 AND isis_adjacency.a_sys_id="+a_sys_id+" AND isis_adjacency.b_sys_id=router.id ORDER BY isis_adjacency.b_sys_id ;"
+                        neighbor_rc     = dict_query_database( db_connection, neighbor )
+                        for neighbor_i  in neighbor_rc :
+                                b_host  = str(neighbor_i['b_host'])
+                                a_to_b  = neighbor_i['metric']
+                                if b_host       not in G[a_host] :
+                                        G[a_host][b_host]               = a_to_b
+                                else :
+                                        if a_to_b < G[a_host][b_host] :
+                                                G[a_host][b_host]       = a_to_b
+
+                # print G
+                for i   in netelement_ :
+                        # print netelement_[netelement_.index(i)]
+                        cost    = dijkstra( G, i['hostname'] )[0]
+                        route_  = [ ]
+                        for v   in G :
+                                path_                   = { }
+                                path_['dst']            = v
+                                path_['dst_cost']       = cost[v]
+                                path_['dst_route']      = shortest_path( G, i['hostname'], v )
+                                path_['dst_route']      = ", ".join(path_['dst_route'])
+                                route_.append( path_ )
+                        netelement_[netelement_.index(i)]['igp']        = route_
+
+
+                openlayers_             = { 'map_':map_ , 'netelement_':netelement_ }
+                openlayers_json         = json.dumps(openlayers_)
+                file                    = open(map_['name']+".netelement"+".openlayers"+".json", "w")
+                file.write(openlayers_json)
+                file.close()
+
+                openlayers_             = { 'map_':map_ , 'isis_':isis_ }
+                openlayers_json         = json.dumps(openlayers_)
+                file                    = open(map_['name']+".isis"+".openlayers"+".json", "w")
+                file.write(openlayers_json)
+                file.close()
+
+        db_connection.close( )
+
+if      __name__ == "__main__" :
+
+        try :
+                main( )
+        except Exception, e :
+                print str(e)
+                traceback.print_exc()
+                os._exit(1)
