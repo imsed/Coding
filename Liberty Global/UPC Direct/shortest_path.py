@@ -1,8 +1,6 @@
 __author__ = 'ismayl'
 
 from lxml import etree
-from lxml import objectify
-from StringIO import StringIO
 def     dijkstra( G, start, end=None):
         """
         Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
@@ -45,18 +43,11 @@ def     shortest_path(G, start, end):
 
         return  Path
 def     isis_database_dict(isis_db_xml_file):
-    tree = etree.parse(isis_db_xml_file)
-    root = tree.getroot()
-    # level 2 database
-    level2 = root.find('{*}isis-database-information')['isis-database'][1]
-    # find within level2 all isis extended neighbours
-    for neighbour in level2.findall('.//{*}reachability-tlv[@heading="IS extended neighbor:"]'):
-        a_node = get_hostname(str(neighbour.find('../..')['lsp-id']))  # get ancestor element
-        z_node = get_hostname(str(neighbour['address-prefix']))
-        a_ip = str(neighbour.find('.//{*}isis-reachability-subtlv/{*}address'))
-        z_ip = str(neighbour.find('.//{*}isis-reachability-subtlv/{*}neighbor-prefix'))
-        metric = int(neighbour['metric'])
-        print z_node
+        tree = etree.parse(isis_db_xml_file)
+        for neighbor in tree.xpath("//isis-database-entry"):
+            hostname = " ".join(neighbor.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
+            print hostname
+
 
 
 
