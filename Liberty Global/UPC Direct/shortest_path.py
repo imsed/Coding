@@ -55,11 +55,13 @@ def     isis_database_dict(isis_db_xml_file):
                             int(neighbor_hostname)
                             break
                     except ValueError:
-                            neighbor[neighbor_hostname] = (neighbor_metric, neighbor_local_prefix)
-            if hostname in database:
-                database[hostname].update(neighbor)
+                            if (neighbor_hostname not in neighbor) or (neighbor[neighbor_hostname][0]>neighbor_metric) :
+                                  neighbor[neighbor_hostname] = (neighbor_metric, neighbor_local_prefix)
+
+            if hostname not in database:
+                database[hostname] = neighbor
             else:
-                    database[hostname] = neighbor
+                    database[hostname].update(neighbor)
         return database
 
 G = isis_database_dict("show_isis_database_extensive.xml")
