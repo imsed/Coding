@@ -58,9 +58,14 @@ def     isis_database_dict(isis_db_xml_file):
                             break
                     except ValueError:
                             neighbor[neighbor_hostname] = (neighbor_metric, neighbor_local_prefix)
+            if hostname in database:
+                print hostname
+                print neighbor
+                print database[hostname]
+                database[hostname].update(neighbor)
             database[hostname] = neighbor
         return database
 
 G = isis_database_dict("show_isis_database_extensive.xml")
-
-print shortest_path(G, "nl-ams02a-rc2", "de-fra01b-ri2")
+print G["de-fra04a-rc1-re0"]
+#print shortest_path(G, "nl-ams02a-rc2", "de-fra01b-ri2")
