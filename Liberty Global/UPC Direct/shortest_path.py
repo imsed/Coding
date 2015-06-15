@@ -10,7 +10,7 @@ def     dijkstra( G, start, end=None):
 
         D               = {}                    # dictionary of final distances.
         P               = {}                    # dictionary of predecessors.
-        Q               = priorityDictionary()                    # estimated distances of non-final vertices.
+        Q               = priorityDictionary()  # estimated distances of non-final vertices.
         Q[start]        = 0
 
         for v in Q:
@@ -23,21 +23,22 @@ def     dijkstra( G, start, end=None):
                                         raise ValueError, "Dijkstra: found better path to already-final vertex"
                         elif w not in Q or vwLength < Q[w]:
                                 Q[w] = vwLength
-                                P[w] = v
+                                P[w] = (v,G[v][w][1])
 
         return  ( D, P )
-def     shortest_path(G, start, end):
+def     shortest_path(G, source, destination):
         """
         Find a single shortest path from the given start vertex to the given end vertex.
         The output is a list of the vertices in order along the shortest path.
         """
 
-        D,P = dijkstra(G,start,end)
+        D,P = dijkstra(G,source,destination)
         Path = []
+        end=(destination,"")
         while 1:
                 Path.append(end)
-                if end == start: break
-                end = P[end]
+                if end[0] == source: break
+                end = P[end[0]]
         Path.reverse()
 
         return  Path
@@ -46,7 +47,10 @@ def     isis_database_dict(isis_db_xml_file):
         database = {}
         for db_entry in tree.xpath("//isis-database-entry"):
             hostname = " ".join(db_entry.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
-            neighbor = {}
+            try:
+                    database[hostname]
+            except KeyError:
+                    database[hostname] = {}
             for re_tlv in db_entry.xpath('./isis-tlv/reachability-tlv') :
                     neighbor_hostname = " ".join(re_tlv.xpath("./address-prefix/text()")).strip("\n").split('.')[0]
                     neighbor_metric = int(" ".join(re_tlv.xpath("./metric/text()")).strip("\n"))
@@ -55,14 +59,9 @@ def     isis_database_dict(isis_db_xml_file):
                             int(neighbor_hostname)
                             break
                     except ValueError:
-                            if (neighbor_hostname not in neighbor) or (neighbor[neighbor_hostname][0]>neighbor_metric) :
-                                  neighbor[neighbor_hostname] = (neighbor_metric, neighbor_local_prefix)
-
-            if hostname not in database:
-                database[hostname] = neighbor
-            else:
-                    database[hostname].update(neighbor)
+                            if (neighbor_hostname not in database[hostname]) or (database[hostname][neighbor_hostname][0] > neighbor_metric):
+                                database[hostname].update({neighbor_hostname: (neighbor_metric, neighbor_local_prefix)})
         return database
 
 G = isis_database_dict("show_isis_database_extensive.xml")
-print shortest_path(G, "nl-ams02a-rc2", "de-fra01b-ri2")
+print shortest_path(G, "nl-ams05a-rc1", "de-fra01b-ri2")
