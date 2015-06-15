@@ -44,8 +44,8 @@ def     shortest_path(G, start, end):
         return  Path
 def     isis_database_dict(isis_db_xml_file):
         tree = etree.parse(isis_db_xml_file)
-        for router in tree.xpath("//isis-database-entry"):
-            hostname = " ".join(router.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
+        for neighbor in tree.xpath("//isis-database-entry"):
+            hostname = " ".join(neighbor.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
             print hostname
 
 
