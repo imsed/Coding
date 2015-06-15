@@ -1,6 +1,6 @@
 __author__ = 'ismayl'
-
 from lxml import etree
+from    priodict        import  priorityDictionary
 def     dijkstra( G, start, end=None):
         """
         Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
@@ -10,15 +10,15 @@ def     dijkstra( G, start, end=None):
 
         D               = {}                    # dictionary of final distances.
         P               = {}                    # dictionary of predecessors.
-        Q               = priorityDictionary()  # estimated distances of non-final vertices.
+        Q               = priorityDictionary()                    # estimated distances of non-final vertices.
         Q[start]        = 0
 
         for v in Q:
                 D[v] = Q[v]
                 if v == end: break
-
+                print "###############",v, "####",Q,"###############"
                 for w in G[v]:
-                        vwLength = D[v] + G[v][w]
+                        vwLength = D[v] + G[v][w][0]
                         if w in D:
                                 if vwLength < D[w]:
                                         raise ValueError, "Dijkstra: found better path to already-final vertex"
@@ -38,20 +38,29 @@ def     shortest_path(G, start, end):
         while 1:
                 Path.append(end)
                 if end == start: break
+                #print end,"###",P[end]
                 end = P[end]
         Path.reverse()
 
         return  Path
 def     isis_database_dict(isis_db_xml_file):
         tree = etree.parse(isis_db_xml_file)
-        for neighbor in tree.xpath("//isis-database-entry"):
-            hostname = " ".join(neighbor.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
-            print hostname
+        database = {}
+        for db_entry in tree.xpath("//isis-database-entry"):
+            hostname = " ".join(db_entry.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
+            neighbor = {}
+            for re_tlv in db_entry.xpath('./isis-tlv/reachability-tlv') :
+                    neighbor_hostname = " ".join(re_tlv.xpath("./address-prefix/text()")).strip("\n").split('.')[0]
+                    neighbor_metric = int(" ".join(re_tlv.xpath("./metric/text()")).strip("\n"))
+                    neighbor_local_prefix = " ".join(re_tlv.xpath("./isis-reachability-subtlv/address/text()")).strip("\n")
+                    try:
+                            int(neighbor_hostname)
+                            break
+                    except ValueError:
+                            neighbor[neighbor_hostname] = (neighbor_metric, neighbor_local_prefix)
+            database[hostname] = neighbor
+        return database
 
+G = isis_database_dict("show_isis_database_extensive.xml")
 
-
-
-
-
-
-isis_database_dict("/home/ismayl/show_isis_database_extensive.xml")
+print shortest_path(G, "nl-ams02a-rc2", "de-fra01b-ri2")
