@@ -64,4 +64,4 @@ def     isis_database_dict(isis_db_xml_file):
         return database
 
 G = isis_database_dict("show_isis_database_extensive.xml")
-print shortest_path(G, "nl-ams05a-rc1", "de-fra01b-ri2")
+shortest_path(G, "nl-ams05a-rc1", "de-fra01b-ri2")
