@@ -81,15 +81,15 @@ def     upc_direct_graph(file,direction):
                         path = shortest_path(database, hub, spoke)
                 elif direction == "spoke_to_hub":
                         path = shortest_path(database, spoke, hub)
-                G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
+                G.add_node(pydot.Node(spoke, style="filled", fillcolor="white", shape='none', image='/home/ismayl/python_scripts/Juniper/router_icon.jpg'))
                 color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
-                        G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="azure2"))
+                        G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="white", shape='none', image='/home/ismayl/python_scripts/Juniper/router_icon.jpg'))
                         G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
         return G
 def     draw_graph(args):
         st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
-        upc_direct_graph(args[0],args[1]).write(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".dot")
+        upc_direct_graph(args[0],args[1]).write_png(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".png")
 
 if __name__ == '__main__':
         po = Pool()
