@@ -1,6 +1,9 @@
 __author__ = 'ismayl'
 from lxml import etree
 from    priodict        import  priorityDictionary
+import pydot
+import random
+
 def     dijkstra( G, start, end=None):
         """
         Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
@@ -62,6 +65,25 @@ def     isis_database_dict(isis_db_xml_file):
                             if (neighbor_hostname not in database[hostname]) or (database[hostname][neighbor_hostname][0] > neighbor_metric):
                                 database[hostname].update({neighbor_hostname: (neighbor_metric, neighbor_local_prefix)})
         return database
+def     upc_direct_hub_spoke_graph(file):
+        f = open(file)
+        nodes = f.readlines()
+        f.close()
+        G = pydot.Dot(graph_type='digraph')
+        database = isis_database_dict("show_isis_database_extensive.xml")
+        hub = nodes[0].strip('\n')
+        for h in nodes:
+                spoke=h.strip('\n')
+                path=shortest_path(database, hub, spoke)
+                G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
+                color = "#%03x" % random.randint(0,0xFFFFFF)
+                for i in range(len(path)-1):
+                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0],label=path[i][1],labelfontcolor=color, fontsize="10.0",color=color))
+        G.write_png("upc_direct.png")
 
-G = isis_database_dict("show_isis_database_extensive.xml")
-shortest_path(G, "nl-ams05a-rc1", "de-fra01b-ri2")
+
+
+
+upc_direct_hub_spoke_graph('upc_direct_primary_hosts.txt')
+#G = isis_database_dict("show_isis_database_extensive.xml")
+#print  shortest_path(G, "nl-ams05a-rc1", "nl-ams05a-rc1")
