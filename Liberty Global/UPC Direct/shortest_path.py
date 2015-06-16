@@ -3,6 +3,8 @@ from lxml import etree
 from    priodict        import  priorityDictionary
 import pydot
 import random
+import datetime
+import time
 from multiprocessing import Pool
 def     dijkstra(G, start, end=None):
         """
@@ -78,8 +80,10 @@ def     upc_direct_hub_spoke_graph(file):
                 G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
                 color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
+                        G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="azure2"))
                         G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
-        return G
+        st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
+        G.write("upc_direct_"+hub+"_to_leaf@"+st+".dot")
 def     upc_direct_spoke_hub_graph(file):
         f = open(file)
         nodes = f.readlines()
@@ -90,19 +94,22 @@ def     upc_direct_spoke_hub_graph(file):
         for h in nodes:
                 spoke = h.strip('\n')
                 path = shortest_path(database, spoke, hub)
-                G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
+                G.add_node(pydot.Node(hub, style="filled", fillcolor="azure2"))
                 color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
+                        G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="azure2"))
                         G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
-        return G
+        st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
+        G.write("upc_direct_from_leaf_to_"+hub+"@"+st+".dot")
 
 
 
 if __name__ == '__main__':
         po = Pool()
         upc_direct_host = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
-        res = po.map_async(upc_direct_spoke_hub_graph, ((args,) for args in upc_direct_host))
-        res.get().write()
+        po.map(upc_direct_spoke_hub_graph,  upc_direct_host)
+        po.map(upc_direct_hub_spoke_graph, upc_direct_host)
+
 
 
 
