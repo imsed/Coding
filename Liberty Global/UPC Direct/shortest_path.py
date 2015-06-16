@@ -3,8 +3,8 @@ from lxml import etree
 from    priodict        import  priorityDictionary
 import pydot
 import random
-
-def     dijkstra( G, start, end=None):
+from multiprocessing import Pool
+def     dijkstra(G, start, end=None):
         """
         Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
         For any vertex v, G[v] is itself a dictionary, indexed by the neighbors of v.  For any edge v->w, G[v][w] is the length of the edge.
@@ -49,13 +49,13 @@ def     isis_database_dict(isis_db_xml_file):
         tree = etree.parse(isis_db_xml_file)
         database = {}
         for db_entry in tree.xpath("//isis-database-entry"):
-            hostname = " ".join(db_entry.xpath("./lsp-id/text()")).strip("\n").split('.')[0]
+            hostname = " ".join(db_entry.xpath("./lsp-id/text()")).strip("\n").split('.')[0].split('-re')[0]
             try:
                     database[hostname]
             except KeyError:
                     database[hostname] = {}
             for re_tlv in db_entry.xpath('./isis-tlv/reachability-tlv') :
-                    neighbor_hostname = " ".join(re_tlv.xpath("./address-prefix/text()")).strip("\n").split('.')[0]
+                    neighbor_hostname = " ".join(re_tlv.xpath("./address-prefix/text()")).strip("\n").split('.')[0].split('-re')[0]
                     neighbor_metric = int(" ".join(re_tlv.xpath("./metric/text()")).strip("\n"))
                     neighbor_local_prefix = " ".join(re_tlv.xpath("./isis-reachability-subtlv/address/text()")).strip("\n")
                     try:
@@ -73,17 +73,41 @@ def     upc_direct_hub_spoke_graph(file):
         database = isis_database_dict("show_isis_database_extensive.xml")
         hub = nodes[0].strip('\n')
         for h in nodes:
-                spoke=h.strip('\n')
-                path=shortest_path(database, hub, spoke)
+                spoke = h.strip('\n')
+                path = shortest_path(database, hub, spoke)
                 G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
-                color = "#%03x" % random.randint(0,0xFFFFFF)
+                color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
-                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0],label=path[i][1],labelfontcolor=color, fontsize="10.0",color=color))
-        G.write_png("upc_direct.png")
+                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
+        return G
+def     upc_direct_spoke_hub_graph(file):
+        f = open(file)
+        nodes = f.readlines()
+        f.close()
+        G = pydot.Dot(graph_type='digraph')
+        database = isis_database_dict("show_isis_database_extensive.xml")
+        hub = nodes[0].strip('\n')
+        for h in nodes:
+                spoke = h.strip('\n')
+                path = shortest_path(database, spoke, hub)
+                G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
+                color = "#%03x" % random.randint(0, 0xFFFFFF)
+                for i in range(len(path)-1):
+                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
+        return G
+
+
+
+if __name__ == '__main__':
+        po = Pool()
+        upc_direct_host = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
+        res = po.map_async(upc_direct_spoke_hub_graph, ((args,) for args in upc_direct_host))
+        res.get().write()
 
 
 
 
-upc_direct_hub_spoke_graph('upc_direct_primary_hosts.txt')
 #G = isis_database_dict("show_isis_database_extensive.xml")
-#print  shortest_path(G, "nl-ams05a-rc1", "nl-ams05a-rc1")
+#print G["nl-ams05a-rc1"]
+#print  shortest_path(G, "nl-ams05a-rc1", "pl-waw04a-ra18")
+
