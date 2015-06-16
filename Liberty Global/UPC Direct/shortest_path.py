@@ -6,6 +6,7 @@ import random
 import datetime
 import time
 from multiprocessing import Pool
+from itertools import product
 def     dijkstra(G, start, end=None):
         """
         Find shortest paths from the  start vertex to all vertices nearer than or equal to the end.
@@ -67,7 +68,7 @@ def     isis_database_dict(isis_db_xml_file):
                             if (neighbor_hostname not in database[hostname]) or (database[hostname][neighbor_hostname][0] > neighbor_metric):
                                 database[hostname].update({neighbor_hostname: (neighbor_metric, neighbor_local_prefix)})
         return database
-def     upc_direct_hub_spoke_graph(file):
+def     upc_direct_graph(file,direction):
         f = open(file)
         nodes = f.readlines()
         f.close()
@@ -76,39 +77,26 @@ def     upc_direct_hub_spoke_graph(file):
         hub = nodes[0].strip('\n')
         for h in nodes:
                 spoke = h.strip('\n')
-                path = shortest_path(database, hub, spoke)
+                if direction == "hub_to_spoke":
+                        path = shortest_path(database, hub, spoke)
+                elif direction == "spoke_to_hub":
+                        path = shortest_path(database, spoke, hub)
                 G.add_node(pydot.Node(spoke, style="filled", fillcolor="azure2"))
                 color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
                         G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="azure2"))
                         G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
+        return G
+def     draw_graph(args):
         st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
-        G.write("upc_direct_"+hub+"_to_leaf@"+st+".dot")
-def     upc_direct_spoke_hub_graph(file):
-        f = open(file)
-        nodes = f.readlines()
-        f.close()
-        G = pydot.Dot(graph_type='digraph')
-        database = isis_database_dict("show_isis_database_extensive.xml")
-        hub = nodes[0].strip('\n')
-        for h in nodes:
-                spoke = h.strip('\n')
-                path = shortest_path(database, spoke, hub)
-                G.add_node(pydot.Node(hub, style="filled", fillcolor="azure2"))
-                color = "#%03x" % random.randint(0, 0xFFFFFF)
-                for i in range(len(path)-1):
-                        G.add_node(pydot.Node(path[i][0], style="filled", fillcolor="azure2"))
-                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
-        st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
-        G.write("upc_direct_from_leaf_to_"+hub+"@"+st+".dot")
-
-
+        upc_direct_graph(args[0],args[1]).write(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".dot")
 
 if __name__ == '__main__':
         po = Pool()
-        upc_direct_host = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
-        po.map(upc_direct_spoke_hub_graph,  upc_direct_host)
-        po.map(upc_direct_hub_spoke_graph, upc_direct_host)
+        hosts_file = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
+        direction = ("hub_to_spoke","spoke_to_hub")
+        po.map(draw_graph,((f,d) for f,d in product(hosts_file,direction)))
+
 
 
 
