@@ -90,12 +90,23 @@ def     upc_direct_graph(file,direction):
 def     draw_graph(args):
         st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
         upc_direct_graph(args[0],args[1]).write_png(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".png")
+        overlap=[]
+def     graph_contain(n,G):
+        if n.get_name() in [node.get_name() for node in G.get_node_list()]:
+                overlap.append(n.get_name())
+
 
 if __name__ == '__main__':
         po = Pool()
         hosts_file = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
         direction = ("hub_to_spoke","spoke_to_hub")
         po.map(draw_graph,((f,d) for f,d in product(hosts_file,direction)))
+        G = []
+        for f,d in product(hosts_file,direction):
+                G.append(upc_direct_graph(f,d))
+        print len(G)
+        Pool().map(graph_contain,((n,g) for n,g in product(G[0].get_node_list(),G[2])))
+
 
 
 
