@@ -68,7 +68,13 @@ def     isis_database_dict(isis_db_xml_file):
                             if (neighbor_hostname not in database[hostname]) or (database[hostname][neighbor_hostname][0] > neighbor_metric):
                                 database[hostname].update({neighbor_hostname: (neighbor_metric, neighbor_local_prefix)})
         return database
-def     upc_direct_graph(file,direction):
+def     upc_direct_overlaping_nodes(node,overlap_nodes):
+        if node in overlap_nodes:
+                        return pydot.Node(node,fontsize="15.0", shape='doublecircle', color="red", image='/home/ismayl/python_scripts/Juniper/router-icon.jpg')
+        else:
+                        return pydot.Node(node, fontsize="15.0", shape='none', image='/home/ismayl/python_scripts/Juniper/router-icon.jpg')
+
+def     upc_direct_graph(file,direction,overlap_nodes):
         f = open(file)
         nodes = f.readlines()
         f.close()
@@ -81,33 +87,48 @@ def     upc_direct_graph(file,direction):
                         path = shortest_path(database, hub, spoke)
                 elif direction == "spoke_to_hub":
                         path = shortest_path(database, spoke, hub)
-                G.add_node(pydot.Node(spoke, fontsize="15.0", shape='none', image='/home/ismayl/python_scripts/Juniper/router-icon.jpg'))
+                s = upc_direct_overlaping_nodes(spoke,overlap_nodes)
+                if graph_contain(s,G) is False:
+                                G.add_node(s)
                 color = "#%03x" % random.randint(0, 0xFFFFFF)
                 for i in range(len(path)-1):
-                        G.add_node(pydot.Node(path[i][0], fontsize="15.0",  shape='none', image='/home/ismayl/python_scripts/Juniper/router-icon.jpg'))
-                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelloc="t", labelfontcolor=color, fontsize="10.0", color=color))
+                        n = upc_direct_overlaping_nodes(path[i][0],overlap_nodes)
+                        if graph_contain(n,G) is False:
+                                G.add_node(n)
+                        G.add_edge(pydot.Edge(path[i][0], path[i+1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0", color=color))
         return G
 def     draw_graph(args):
         st = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H-%M-%S')
-        upc_direct_graph(args[0],args[1]).write_png(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".png")
-        overlap=[]
+        upc_direct_graph(args[0],args[1],args[2]).write_png(str(args[0]).split("hosts.txt")[0]+args[1]+"@"+st+".png")
+
 def     graph_contain(n,G):
         if n.get_name() in [node.get_name() for node in G.get_node_list()]:
-                overlap.append(n.get_name())
+                return True
+        else:
+                return False
+def     overlaping_nodes(G1,G2):
+        overlap = []
+        for n in G1.get_node_list():
+                if graph_contain(n, G2) is True:
+                        overlap.append(n.get_name().split("\"")[1])
+        return overlap
 
 
 if __name__ == '__main__':
         po = Pool()
         hosts_file = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
-        direction = ("hub_to_spoke","spoke_to_hub")
-        po.map(draw_graph,((f,d) for f,d in product(hosts_file,direction)))
-        G = []
-        for f,d in product(hosts_file,direction):
-                G.append(upc_direct_graph(f,d))
-        print len(G)
-        Pool().map(graph_contain,((n,g) for n,g in product(G[0].get_node_list(),G[2])))
-
-
+        directions = ("hub_to_spoke","spoke_to_hub")
+        G_list=[]
+        overlap=[]
+        for f,d in product(hosts_file,directions):
+                G_list.append(upc_direct_graph(f,d,overlap))
+        for i in range(2):
+                for o in overlaping_nodes(G_list[i],G_list[2]):
+                        overlap.append(o)
+                for o in overlaping_nodes(G_list[i],G_list[3]):
+                        overlap.append(o)
+        overlap_nodes = list(set(overlap))
+        po.map(draw_graph,((f,d,overlap_nodes) for f,d in product(hosts_file,directions)))
 
 
 
