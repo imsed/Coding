@@ -109,8 +109,8 @@ def     graph_contain(n,G):
 def     overlaping_nodes(L1,L2):
         return  list(set(L1) & set(L2))
 
-def     upc_direct_physical_nodes(file,direction):
-        f = open(file)
+def     upc_direct_physical_nodes(args):
+        f = open(args[0])
         hosts = f.readlines()
         f.close()
         Nodes = []
@@ -118,9 +118,9 @@ def     upc_direct_physical_nodes(file,direction):
         hub = hosts[0].strip('\n')
         for h in hosts:
                 spoke = h.strip('\n')
-                if direction == "hub_to_spoke":
+                if args[1] == "hub_to_spoke":
                         path = shortest_path(database, hub, spoke)
-                elif direction == "spoke_to_hub":
+                elif args[1] == "spoke_to_hub":
                         path = shortest_path(database, spoke, hub)
                 for p in path:
                         Nodes.append(p[0])
@@ -128,22 +128,12 @@ def     upc_direct_physical_nodes(file,direction):
 
 
 if __name__ == '__main__':
-        po = Pool()
         hosts_file = ('upc_direct_secondary_hosts.txt','upc_direct_primary_hosts.txt')
         directions = ("hub_to_spoke","spoke_to_hub")
-        Nodes_list=[]
-        overlap=[]
-        res= po.map(upc_direct_physical_nodes,((f,d) for f,d in product(hosts_file,directions)))
-        for f,d in product(hosts_file,directions):
-                Nodes_list.append(upc_direct_physical_nodes(f,d))
-        for i in range(2):
-                for o in overlaping_nodes(Nodes_list[i],Nodes_list[2]):
-                        overlap.append(o)
-                for o in overlaping_nodes(Nodes_list[i],Nodes_list[3]):
-                        overlap.append(o)
-        overlap_nodes = list(set(overlap))
+        res = Pool().map(upc_direct_physical_nodes,((f1,d1) for f1,d1 in product(hosts_file,directions)))
+        overlap_nodes = list(set(res[0]) & set(res[1]) & set(res[2]) & set(res[3]))
         print overlap_nodes
-        po.map(draw_graph,((f,d,overlap_nodes) for f,d in product(hosts_file,directions)))
+        Pool().map(draw_graph,((f,d,overlap_nodes) for f,d in product(hosts_file,directions)))
 
 
 
