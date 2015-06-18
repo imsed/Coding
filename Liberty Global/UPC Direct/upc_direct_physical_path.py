@@ -93,7 +93,7 @@ def get_isis_database():
     return database
 
 
-def set_graph_nodes_style(node, overlap_nodes):
+def set_graph_node_style(node, overlap_nodes):
     if node in overlap_nodes:
         return pydot.Node(node, fontsize="10.0", shape='none', color="red",
                           image='/home/ismayl/python_scripts/Juniper/r1_overlap.jpg')
@@ -120,12 +120,12 @@ def get_upc_direct_graph(file_name, direction, overlap_nodes):
             path = shortest_path(database, hub, spoke)
         elif direction == "spoke_to_hub":
             path = shortest_path(database, spoke, hub)
-        s = set_graph_nodes_style(spoke, overlap_nodes)
+        s = set_graph_node_style(spoke, overlap_nodes)
         if if_graph_contain(s, G) is False:
             G.add_node(s)
         color = "#%03x" % random.randint(0, 0xFFFFFF)
         for i in range(len(path) - 1):
-            n = set_graph_nodes_style(path[i][0], overlap_nodes)
+            n = set_graph_node_style(path[i][0], overlap_nodes)
             if if_graph_contain(n, G) is False:
                 G.add_node(n)
             G.add_edge(pydot.Edge(path[i][0], path[i + 1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0",
