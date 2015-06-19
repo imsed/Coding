@@ -89,7 +89,10 @@ def get_isis_database():
             except ValueError:
                 if (neighbor_hostname not in database[hostname]) or (
                             database[hostname][neighbor_hostname][0] > neighbor_metric):
-                    database[hostname].update({neighbor_hostname: (neighbor_metric, neighbor_local_prefix)})
+                    database[hostname].update({neighbor_hostname: (neighbor_metric, [neighbor_local_prefix])})
+                elif database[hostname][neighbor_hostname][0] == neighbor_metric:
+                    database[hostname][neighbor_hostname][1].append(neighbor_local_prefix)
+
     return database
 
 
@@ -114,6 +117,8 @@ def get_upc_direct_graph(file_name, direction, overlap_nodes):
     G = pydot.Dot(graph_type='digraph')
     database = get_isis_database()
     hub = nodes[0].strip('\n')
+    color = ["crimson","blue","crimson","green","hotpink","purple","orange","darkgreen","brown","firebrick4"]
+    c = 0
     for h in nodes:
         spoke = h.strip('\n')
         if direction == "hub_to_spoke":
@@ -123,13 +128,13 @@ def get_upc_direct_graph(file_name, direction, overlap_nodes):
         s = set_graph_node_style(spoke, overlap_nodes)
         if if_graph_contain(s, G) is False:
             G.add_node(s)
-        color = "#%03x" % random.randint(0, 0xFFFFFF)
+        #color = "#%03x" % random.randint(0, 0xFFFFFF)
         for i in range(len(path) - 1):
             n = set_graph_node_style(path[i][0], overlap_nodes)
             if if_graph_contain(n, G) is False:
                 G.add_node(n)
-            G.add_edge(pydot.Edge(path[i][0], path[i + 1][0], label=path[i][1], labelfontcolor=color, fontsize="10.0",
-                                  color=color))
+            G.add_edge(pydot.Edge(path[i][0], path[i + 1][0], label=str(path[i][1]),fontsiz="8.0", color=color[c]))
+        c += 1
     return G
 
 
@@ -159,5 +164,6 @@ if __name__ == '__main__':
     res = Pool().map(get_upc_direct_nodes, ((f1, d1) for f1, d1 in product(hosts_file, directions)))
     overlap_nodes = list((set(res[0]) | set(res[1])) & (set(res[2]) | set(res[3])))
     Pool().map(draw_graph, ((f, d, overlap_nodes) for f, d in product(hosts_file, directions)))
+    #print get_isis_database()["de-fra04a-rc1"]
 
 
